@@ -1,11 +1,11 @@
 #!/bin/sh
-# Installs devcontainer-timezone-agent, the host side of the timezone Dev
+# Installs timezone-agent, the host side of the timezone Dev
 # Container Feature. CMake generates this file from install.sh.in, filling in
 # the constants below at configure time; everything else is decided here, on
 # the machine being installed.
 #
-#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/devcontainer-timezone-agent-install.sh | sh
-#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/devcontainer-timezone-agent-install.sh | sh -s -- --uninstall
+#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/timezone-agent-install.sh | sh
+#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/timezone-agent-install.sh | sh -s -- --uninstall
 #
 # Usage: install.sh [--local BINARY] [--uninstall]
 #   (no option)    download this release's binary for this machine, verify it
@@ -21,7 +21,7 @@
 # (where the release assets are, default that release on GitHub).
 set -eu
 
-NAME=devcontainer-timezone-agent
+NAME=timezone-agent
 LABEL='@AGENT_LABEL@'
 REPO='@AGENT_REPO@'
 DEFAULT_RELEASE='@AGENT_RELEASE@'

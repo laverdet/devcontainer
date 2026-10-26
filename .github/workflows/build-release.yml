@@ -80,27 +80,27 @@ jobs:
       - name: Build
         run: ninja -C build
       - name: Strip
-        run: strip build/devcontainer-timezone-agent
+        run: strip build/timezone-agent
       - if: matrix.host.platform == 'darwin'
         name: Sign [macOS]
-        run: codesign --force --sign - build/devcontainer-timezone-agent
+        run: codesign --force --sign - build/timezone-agent
       - if: matrix.host.platform == 'darwin'
         name: Architecture [macOS]
         env:
           ARCH: ${{ matrix.host.arch }}
-        run: lipo -archs build/devcontainer-timezone-agent | grep -qx "$ARCH"
+        run: lipo -archs build/timezone-agent | grep -qx "$ARCH"
       - if: '!matrix.host.cross'
         name: Sanity Check
-        run: build/devcontainer-timezone-agent -h
+        run: build/timezone-agent -h
 
       # Package: one tarball per target, plus the installer once (it is the same everywhere)
       - name: Package
         run: |
           set -ux
           mkdir dist
-          tar -C build -czf "dist/devcontainer-timezone-agent-$TRIPLET.tar.gz" devcontainer-timezone-agent install.sh
+          tar -C build -czf "dist/timezone-agent-$TRIPLET.tar.gz" timezone-agent install.sh
           if [ "$TRIPLET" = aarch64-apple-darwin ]; then
-            cp build/install.sh dist/devcontainer-timezone-agent-install.sh
+            cp build/install.sh dist/timezone-agent-install.sh
           fi
       - uses: actions/upload-artifact@v6
         with:
@@ -112,8 +112,8 @@ jobs:
       - if: failure()
         uses: laverdet/console@v1
 
-  # Features go to GHCR as packages (on main); host binaries go to a GitHub
-  # release (on a v* tag). Everything else is a dry run.
+  # Features go to GHCR as packages on a push to main; host binaries go to a
+  # GitHub release on a v* tag. Everything else is a dry run.
   release:
     name: Release
     needs: build
@@ -131,6 +131,7 @@ jobs:
         uses: devcontainers/action@v1
         with:
           base-path-to-features: ./features
+          disable-repo-tagging: "true"
           disable-schema-validation: "true"
           features-namespace: laverdet/devcontainer/features
           publish-features: "true"
@@ -151,7 +152,7 @@ jobs:
           merge-multiple: true
       - name: Checksums
         working-directory: dist
-        run: sha256sum ./*.tar.gz | tee SHA256SUMS
+        run: sha256sum *.tar.gz | tee SHA256SUMS
       - if: github.repository == 'laverdet/devcontainer' && startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         id: agents
         name: Release Agents

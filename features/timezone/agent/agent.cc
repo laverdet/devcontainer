@@ -1,4 +1,4 @@
-// devcontainer-timezone-agent: publishes the host's time zone where containers can read it.
+// timezone-agent: publishes the host's time zone where containers can read it.
 //
 // The agent keeps two files up to date in a directory that dev containers
 // bind-mount read-only:
@@ -15,7 +15,7 @@
 // lives in with libfswatch (FSEvents on macOS, inotify on Linux) and re-reads
 // the link and its data whenever anything there changes. Nothing polls.
 //
-// Usage: devcontainer-timezone-agent -o DIR [-f LINK] [-l SEC] [-d]
+// Usage: timezone-agent -o DIR [-f LINK] [-l SEC] [-d]
 //   -o DIR   directory to publish into; the installer's service passes
 //            $HOME/.local/share/devcontainer-timezone, which the Feature mounts
 //   -f LINK  symlink to follow (/etc/localtime)
@@ -76,7 +76,7 @@ auto log(std::string_view message) -> void {
 }
 
 auto usage() -> void {
-	std::println(stderr, "usage: devcontainer-timezone-agent -o DIR [-f LINK] [-l SEC] [-d]");
+	std::println(stderr, "usage: timezone-agent -o DIR [-f LINK] [-l SEC] [-d]");
 }
 
 // Zone name from a path such as /var/db/timezone/zoneinfo/Europe/Berlin.
