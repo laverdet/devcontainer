@@ -1,0 +1,100 @@
+// This file is generated from tasks.yaml. Don't edit it!
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "TIMEZONE_AGENT_SRC": "${workspaceFolder}/features/timezone/agent",
+      "TIMEZONE_AGENT_BUILD": "${workspaceFolder}/features/timezone/agent/build"
+    }
+  },
+  "inputs": [
+    {
+      "type": "pickString",
+      "id": "build_type",
+      "description": "Which CMake build type?",
+      "options": [
+        "Debug",
+        "Release",
+        "RelWithDebInfo"
+      ],
+      "default": "Debug"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "devcontainer: build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": [
+        "tasks.yaml: watch",
+        "timezone-agent: build"
+      ],
+      "icon": {
+        "id": "plug"
+      }
+    },
+    {
+      "label": "tasks.yaml: watch",
+      "type": "shell",
+      "command": "set -eux; reset\nexport TASKS_JSON=.vscode/tasks.json\nexport TASKS_YAML=.vscode/tasks.yaml\nexport COMMENT=\"// This file is generated from tasks.yaml. Don't edit it!\"\nif echo | yq -o json 2>/dev/null; then\n  export YQ=\"yq -o json\"\nelse\n  export YQ=yq\nfi\nif command -v entr >/dev/null; then\n  echo \"Watching $TASKS_YAML for changes...\"\n  echo \"$TASKS_YAML\" | \\\n  entr -n sh -c 'date; echo \"$COMMENT\" > $TASKS_JSON; $YQ < $TASKS_YAML >> $TASKS_JSON'\nelse\n  echo \"One-shot $TASKS_YAML\"\n  $YQ < .vscode/tasks.yaml > .vscode/tasks.json\nfi\n",
+      "isBackground": true,
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "never"
+      },
+      "group": "build",
+      "icon": {
+        "id": "eye"
+      }
+    },
+    {
+      "label": "timezone-agent: clean",
+      "type": "shell",
+      "command": "rm -rf \"$TIMEZONE_AGENT_BUILD\"",
+      "problemMatcher": [],
+      "presentation": {
+        "close": true,
+        "reveal": "never"
+      },
+      "icon": {
+        "id": "jersey"
+      }
+    },
+    {
+      "label": "timezone-agent: configure",
+      "type": "shell",
+      "command": "set -eux; reset\ncmake \\\n  -DCMAKE_BUILD_TYPE=${input:build_type} \\\n  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \\\n  -G Ninja \\\n  -S \"$TIMEZONE_AGENT_SRC\" \\\n  -B \"$TIMEZONE_AGENT_BUILD\"\n",
+      "dependsOn": [
+        "timezone-agent: clean"
+      ],
+      "problemMatcher": [],
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always",
+        "showReuseMessage": false
+      },
+      "icon": {
+        "id": "wrench"
+      }
+    },
+    {
+      "label": "timezone-agent: build",
+      "type": "shell",
+      "command": "set -eu\nif [ ! -f \"$TIMEZONE_AGENT_BUILD/build.ninja\" ]; then\n  cmake \\\n    -DCMAKE_BUILD_TYPE=Debug \\\n    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \\\n    -G Ninja \\\n    -S \"$TIMEZONE_AGENT_SRC\" \\\n    -B \"$TIMEZONE_AGENT_BUILD\"\nfi\nninja -C \"$TIMEZONE_AGENT_BUILD\"\n",
+      "problemMatcher": "$gcc",
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always",
+        "showReuseMessage": false
+      },
+      "group": "build",
+      "icon": {
+        "id": "flame"
+      }
+    }
+  ]
+}

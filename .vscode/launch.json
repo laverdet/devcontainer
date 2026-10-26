@@ -1,0 +1,13 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "timezone-agent",
+			"type": "lldb",
+			"request": "launch",
+			"program": "${workspaceFolder}/features/timezone/agent/build/devcontainer-timezone-agent",
+			"args": [ "-o", "${workspaceFolder}/features/timezone/agent/build/share", "-l", "0.2" ],
+			"preLaunchTask": "timezone-agent: build",
+		}
+	],
+}

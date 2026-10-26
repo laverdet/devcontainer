@@ -1,0 +1,116 @@
+# Regenerate with: `tasks.yaml: watch`
+# Icons: https://code.visualstudio.com/api/references/icons-in-labels
+version: 2.0.0
+options:
+  env:
+    TIMEZONE_AGENT_SRC: ${workspaceFolder}/features/timezone/agent
+    TIMEZONE_AGENT_BUILD: ${workspaceFolder}/features/timezone/agent/build
+inputs:
+  - type: pickString
+    id: build_type
+    description: Which CMake build type?
+    options:
+      - Debug
+      - Release
+      - RelWithDebInfo
+    default: Debug
+tasks:
+  # Default meta-build task
+  - label: 'devcontainer: build'
+    group:
+      kind: build
+      isDefault: true
+    dependsOn:
+      - 'tasks.yaml: watch'
+      - 'timezone-agent: build'
+    icon:
+      id: plug
+
+  # Watcher which converts this file to `tasks.json`
+  # In case you mess it up:
+  # v4: yq -o json < .vscode/tasks.yaml > .vscode/tasks.json
+  # v3: yq < .vscode/tasks.yaml > .vscode/tasks.json
+  - label: 'tasks.yaml: watch'
+    type: shell
+    command: |
+      set -eux; reset
+      export TASKS_JSON=.vscode/tasks.json
+      export TASKS_YAML=.vscode/tasks.yaml
+      export COMMENT="// This file is generated from tasks.yaml. Don't edit it!"
+      if echo | yq -o json 2>/dev/null; then
+        export YQ="yq -o json"
+      else
+        export YQ=yq
+      fi
+      if command -v entr >/dev/null; then
+        echo "Watching $TASKS_YAML for changes..."
+        echo "$TASKS_YAML" | \
+        entr -n sh -c 'date; echo "$COMMENT" > $TASKS_JSON; $YQ < $TASKS_YAML >> $TASKS_JSON'
+      else
+        echo "One-shot $TASKS_YAML"
+        $YQ < .vscode/tasks.yaml > .vscode/tasks.json
+      fi
+    isBackground: true
+    presentation:
+      panel: dedicated
+      reveal: never
+    group: build
+    icon:
+      id: eye
+
+  # timezone agent: clean
+  - label: 'timezone-agent: clean'
+    type: shell
+    command: rm -rf "$TIMEZONE_AGENT_BUILD"
+    problemMatcher: []
+    presentation:
+      close: true
+      reveal: never
+    icon:
+      id: jersey
+
+  # timezone agent: configure (also fetches libfswatch)
+  - label: 'timezone-agent: configure'
+    type: shell
+    command: |
+      set -eux; reset
+      cmake \
+        -DCMAKE_BUILD_TYPE=${input:build_type} \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -G Ninja \
+        -S "$TIMEZONE_AGENT_SRC" \
+        -B "$TIMEZONE_AGENT_BUILD"
+    dependsOn:
+      - 'timezone-agent: clean'
+    problemMatcher: []
+    presentation:
+      clear: true
+      panel: dedicated
+      reveal: always
+      showReuseMessage: false
+    icon:
+      id: wrench
+
+  # timezone agent: build (optional debug configure as well)
+  - label: 'timezone-agent: build'
+    type: shell
+    command: |
+      set -eu
+      if [ ! -f "$TIMEZONE_AGENT_BUILD/build.ninja" ]; then
+        cmake \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+          -G Ninja \
+          -S "$TIMEZONE_AGENT_SRC" \
+          -B "$TIMEZONE_AGENT_BUILD"
+      fi
+      ninja -C "$TIMEZONE_AGENT_BUILD"
+    problemMatcher: $gcc
+    presentation:
+      clear: true
+      panel: dedicated
+      reveal: always
+      showReuseMessage: false
+    group: build
+    icon:
+      id: flame

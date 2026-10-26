@@ -1,0 +1,29 @@
+{
+	"C_Cpp.intelliSenseEngine": "disabled",
+	"[cpp]": {
+		"editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+	},
+	"editor.rulers": [
+		// Comments wrap to 100
+		{ "column": 100, "color": "#0000" },
+		// Visual indicator at 120 columns
+		{ "column": 120 },
+	],
+	"editor.insertSpaces": false,
+	"editor.trimAutoWhitespace": true,
+	"files.associations": {
+		".clang-format": "yaml",
+		".clang-tidy": "yaml",
+	},
+	"files.exclude": {
+		".vscode/tasks.json": true,
+		"**/.cache": true,
+		"**/build": true,
+	},
+	"files.insertFinalNewline": true,
+	"files.trimTrailingWhitespace": true,
+	"shellcheck.customArgs": [ "--external-sources" ],
+	"clangd.arguments": [
+		"--header-insertion=never",
+	],
+}

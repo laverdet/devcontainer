@@ -1,0 +1,229 @@
+#!/bin/sh
+# Installs devcontainer-timezone-agent, the host side of the timezone Dev
+# Container Feature. CMake generates this file from install.sh.in, filling in
+# the constants below at configure time; everything else is decided here, on
+# the machine being installed.
+#
+#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/devcontainer-timezone-agent-install.sh | sh
+#   curl -fsSL https://github.com/@AGENT_REPO@/releases/latest/download/devcontainer-timezone-agent-install.sh | sh -s -- --uninstall
+#
+# Usage: install.sh [--local BINARY] [--uninstall]
+#   (no option)    download this release's binary for this machine, verify it
+#                  against the release's SHA256SUMS, install it to PREFIX/bin,
+#                  write the service file and register it to run at login
+#                  (a launchd agent on macOS, a systemd user service on Linux)
+#   --local BIN    use the already built binary at BIN instead of downloading;
+#                  this is what `cmake --install` does
+#   --uninstall    unregister and remove what this script installed
+#
+# Environment: PREFIX (install prefix, default $HOME/.local), AGENT_RELEASE
+# (the v* release tag to fetch, default @AGENT_RELEASE@), AGENT_BASE_URL
+# (where the release assets are, default that release on GitHub).
+set -eu
+
+NAME=devcontainer-timezone-agent
+LABEL='@AGENT_LABEL@'
+REPO='@AGENT_REPO@'
+DEFAULT_RELEASE='@AGENT_RELEASE@'
+RELEASE=${AGENT_RELEASE:-$DEFAULT_RELEASE}
+PREFIX=${PREFIX:-$HOME/.local}
+PUBLISH_DIR=$HOME/.local/share/devcontainer-timezone # what containers bind-mount
+if [ "$RELEASE" = latest ]; then
+	DEFAULT_BASE_URL=https://github.com/$REPO/releases/latest/download
+else
+	DEFAULT_BASE_URL=https://github.com/$REPO/releases/download/$RELEASE
+fi
+BASE_URL=${AGENT_BASE_URL:-$DEFAULT_BASE_URL}
+
+usage() {
+	echo "usage: install.sh [--local BINARY] [--uninstall]"
+}
+say() {
+	printf '%s\n' "$*"
+}
+die() {
+	printf 'install.sh: %s\n' "$*" >&2
+	exit 1
+}
+
+mode=install
+local_bin=
+while [ $# -gt 0 ]; do
+	case $1 in
+		--local)
+			[ $# -ge 2 ] || die "--local needs a path"
+			local_bin=$2
+			shift
+			;;
+		--uninstall) mode=uninstall ;;
+		-h | --help)
+			usage
+			exit 0
+			;;
+		*)
+			usage >&2
+			exit 2
+			;;
+	esac
+	shift
+done
+
+os=$(uname -s)
+arch=$(uname -m)
+case $arch in
+	x86_64 | amd64) arch=x86_64 ;;
+	aarch64 | arm64) arch=aarch64 ;;
+esac
+# Release assets are named by build triplet. The Linux ones are static musl
+# binaries, so they run on any distribution.
+case $os in
+	Darwin)
+		service_file=$HOME/Library/LaunchAgents/$LABEL.plist
+		triplet=$arch-apple-darwin
+		;;
+	Linux)
+		service_file=$HOME/.config/systemd/user/devcontainer-timezone.service
+		triplet=$arch-alpine-linux-musl
+		;;
+	*) die "unsupported system: $os" ;;
+esac
+case $arch in
+	x86_64 | aarch64) asset=$NAME-$triplet.tar.gz ;;
+	*) asset= ;;
+esac
+bin=$PREFIX/bin/$NAME
+
+fetch() { # URL: body on stdout
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL "$1"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -qO- "$1"
+	else
+		die "need curl or wget to download $1"
+	fi
+}
+
+sha256() { # FILE: hex digest on stdout
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d' ' -f1
+	else
+		shasum -a 256 "$1" | cut -d' ' -f1
+	fi
+}
+
+write_service_file() { # BINARY
+	mkdir -p "$(dirname "$service_file")"
+	case $os in
+		Darwin)
+			mkdir -p "$HOME/Library/Logs"
+			cat >"$service_file" <<EOT
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>$LABEL</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>$1</string>
+		<string>-o</string>
+		<string>$PUBLISH_DIR</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<dict>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>StandardErrorPath</key>
+	<string>$HOME/Library/Logs/$NAME.log</string>
+</dict>
+</plist>
+EOT
+			;;
+		Linux)
+			cat >"$service_file" <<EOT
+[Unit]
+Description=Host time zone agent for dev containers
+
+[Service]
+ExecStart=$1 -o "$PUBLISH_DIR"
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+EOT
+			;;
+	esac
+	say "wrote $service_file"
+}
+
+unregister() {
+	case $os in
+		Darwin) launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true ;;
+		Linux) systemctl --user disable --now devcontainer-timezone.service 2>/dev/null || true ;;
+	esac
+}
+
+register_service() {
+	case $os in
+		Darwin)
+			launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+			launchctl bootstrap "gui/$(id -u)" "$service_file"
+			say "registered launchd agent $LABEL (log: $HOME/Library/Logs/$NAME.log)"
+			;;
+		Linux)
+			systemctl --user daemon-reload
+			systemctl --user enable devcontainer-timezone.service
+			systemctl --user restart devcontainer-timezone.service
+			say "registered systemd user service devcontainer-timezone (log: journalctl --user -u devcontainer-timezone)"
+			;;
+	esac
+}
+
+if [ "$mode" = uninstall ]; then
+	unregister
+	if [ -e "$service_file" ]; then
+		rm -f "$service_file" && say "removed $service_file"
+	fi
+	target=${local_bin:-$bin}
+	if [ -e "$target" ]; then
+		rm -f "$target" && say "removed $target"
+	fi
+	exit 0
+fi
+
+if [ -n "$local_bin" ]; then
+	case $local_bin in
+		/*) ;;
+		*) local_bin=$(cd "$(dirname "$local_bin")" && pwd)/$(basename "$local_bin") ;;
+	esac
+	[ -x "$local_bin" ] || die "$local_bin is not an executable file"
+	bin=$local_bin
+else
+	[ -n "$asset" ] || die "no prebuilt binary for $os/$arch; build from source with CMake (see the repository)"
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT
+	say "downloading $BASE_URL/$asset"
+	fetch "$BASE_URL/$asset" >"$tmp/$asset"
+	fetch "$BASE_URL/SHA256SUMS" >"$tmp/SHA256SUMS"
+	expected=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$tmp/SHA256SUMS")
+	[ -n "$expected" ] || die "$asset is not listed in SHA256SUMS"
+	actual=$(sha256 "$tmp/$asset")
+	[ "$actual" = "$expected" ] || die "checksum mismatch for $asset: expected $expected, got $actual"
+	tar -xzf "$tmp/$asset" -C "$tmp" "$NAME"
+	mkdir -p "$PREFIX/bin"
+	install -m 0755 "$tmp/$NAME" "$bin"
+	if [ "$os" = Darwin ]; then
+		xattr -d com.apple.quarantine "$bin" 2>/dev/null || true
+	fi
+	"$bin" -h >/dev/null 2>&1 || die "$bin does not run on this machine"
+	say "installed $bin"
+fi
+
+# Docker on Linux would create a missing publish directory as root, which the
+# agent could not write to, so make sure it exists first.
+mkdir -p "$PUBLISH_DIR"
+write_service_file "$bin"
+register_service

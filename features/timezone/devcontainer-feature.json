@@ -1,0 +1,24 @@
+{
+  "id": "timezone",
+  "version": "1.0.0",
+  "name": "Host time zone",
+  "description": "Forward the host's local timezone to the devcontainer. Updates are reflected immediately. An agent service is required on the host side.",
+  "documentationURL": "https://github.com/laverdet/devcontainer/tree/main/features/timezone",
+  "options": {
+    "timezone": {
+      "type": "string",
+      "default": "",
+      "description": "Use this IANA time zone (for example Europe/Berlin) instead of the host's."
+    },
+    "installTzdata": {
+      "type": "boolean",
+      "default": true,
+      "description": "Install the tzdata package when the image has no /usr/share/zoneinfo."
+    }
+  },
+  "mounts": [
+    "type=bind,source=${localEnv:HOME}/.local/share/devcontainer-timezone,target=/mnt/host/devcontainer-timezone,readonly",
+    "type=bind,source=${localEnv:DEVCONTAINER_TIMEZONE_FILE:/etc/localtime},target=/mnt/host/etc/localtime,readonly"
+  ],
+  "entrypoint": "/usr/local/share/devcontainer-timezone/entrypoint '${localEnv:TZ}'"
+}

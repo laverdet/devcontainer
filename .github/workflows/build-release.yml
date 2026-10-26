@@ -1,0 +1,165 @@
+name: Build, Release
+on: [ push, pull_request ]
+
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  build:
+    name: Build [${{ matrix.host.triplet }}]
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          # aarch64
+          - runs-on: ubuntu-24.04-arm
+            container: alpine:3
+            triplet: aarch64-alpine-linux-musl
+          - runs-on: macos-15
+            platform: darwin
+            arch: arm64
+            triplet: aarch64-apple-darwin
+          # x86_64
+          - runs-on: ubuntu-24.04
+            container: alpine:3
+            triplet: x86_64-alpine-linux-musl
+          # (runs on aarch64 but compiles for x86)
+          - runs-on: macos-15
+            platform: darwin
+            arch: x86_64
+            cross: true
+            triplet: x86_64-apple-darwin
+    runs-on: ${{ matrix.host.runs-on }}
+    container: ${{ matrix.host.container }}
+    env:
+      TRIPLET: ${{ matrix.host.triplet }}
+    steps:
+      - if: matrix.host.triplet == 'aarch64-alpine-linux-musl'
+        uses: laverdet/alpine-arm64@v1
+
+      # Install toolchain
+      - if: matrix.host.container == 'alpine:3'
+        name: Toolchain [Alpine]
+        uses: laverdet/install@v1
+        with:
+          packages: |
+            binutils
+            build-base
+            cmake
+            git
+            linux-headers
+            ninja-is-really-ninja
+          export: |
+            CMAKE_FLAGS=-DAGENT_STATIC=ON
+      - if: matrix.host.platform == 'darwin'
+        name: Toolchain [macOS]
+        env:
+          ARCH: ${{ matrix.host.arch }}
+        run: |
+          # https://github.com/orgs/Homebrew/discussions/5602
+          brew install --quiet cmake ninja
+          # The SDK builds either architecture; the deployment target is set in CMakeLists.txt
+          echo "CMAKE_FLAGS=-DCMAKE_OSX_ARCHITECTURES=$ARCH" >> "$GITHUB_ENV"
+
+      # Setup
+      - uses: actions/checkout@v5
+
+      # Build. A v* tag is the release the installer will fetch from, and the version.
+      - name: Configure
+        env:
+          RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+        run: |
+          set -ux
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DAGENT_RELEASE="$RELEASE" \
+            ${CMAKE_FLAGS:-} \
+            -G Ninja -S features/timezone/agent -B build \
+          ;
+      - name: Build
+        run: ninja -C build
+      - name: Strip
+        run: strip build/devcontainer-timezone-agent
+      - if: matrix.host.platform == 'darwin'
+        name: Sign [macOS]
+        run: codesign --force --sign - build/devcontainer-timezone-agent
+      - if: matrix.host.platform == 'darwin'
+        name: Architecture [macOS]
+        env:
+          ARCH: ${{ matrix.host.arch }}
+        run: lipo -archs build/devcontainer-timezone-agent | grep -qx "$ARCH"
+      - if: '!matrix.host.cross'
+        name: Sanity Check
+        run: build/devcontainer-timezone-agent -h
+
+      # Package: one tarball per target, plus the installer once (it is the same everywhere)
+      - name: Package
+        run: |
+          set -ux
+          mkdir dist
+          tar -C build -czf "dist/devcontainer-timezone-agent-$TRIPLET.tar.gz" devcontainer-timezone-agent install.sh
+          if [ "$TRIPLET" = aarch64-apple-darwin ]; then
+            cp build/install.sh dist/devcontainer-timezone-agent-install.sh
+          fi
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.host.triplet }}
+          path: dist
+          if-no-files-found: error
+
+      # Console on failure
+      - if: failure()
+        uses: laverdet/console@v1
+
+  # Features go to GHCR as packages (on main); host binaries go to a GitHub
+  # release (on a v* tag). Everything else is a dry run.
+  release:
+    name: Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+
+      # Features
+      - if: github.repository == 'laverdet/devcontainer' && github.ref_name == 'main' && github.event_name == 'push'
+        id: publish
+        name: Publish Features
+        uses: devcontainers/action@v1
+        with:
+          base-path-to-features: ./features
+          disable-schema-validation: "true"
+          features-namespace: laverdet/devcontainer/features
+          publish-features: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.publish.outcome == 'skipped'
+        name: Validate Features [Dry Run]
+        uses: devcontainers/action@v1
+        with:
+          base-path-to-features: ./features
+          disable-schema-validation: "true"
+          validate-only: "true"
+
+      # Host agents
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum ./*.tar.gz | tee SHA256SUMS
+      - if: github.repository == 'laverdet/devcontainer' && startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        id: agents
+        name: Release Agents
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes ./*
+      - if: steps.agents.outcome == 'skipped'
+        name: Release Agents [Dry Run]
+        working-directory: dist
+        run: ls -la

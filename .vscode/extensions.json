@@ -1,0 +1,10 @@
+{
+	"recommendations": [
+		"llvm-vs-code-extensions.vscode-clangd",
+		"timonwong.shellcheck",
+		"twxs.cmake",
+	],
+	"unwantedRecommendations": [
+		"ms-vscode.cmake-tools",
+	]
+}
