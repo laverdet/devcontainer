@@ -1,6 +1,6 @@
 {
   "id": "timezone",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Host time zone",
   "description": "Forward the host's local timezone to the devcontainer. Updates are reflected immediately. An agent service is required on the host side.",
   "documentationURL": "https://github.com/laverdet/devcontainer/tree/main/features/timezone",
