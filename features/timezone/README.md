@@ -20,6 +20,9 @@ supported but if you feel like adding Windows support you can send a PR.
 ```sh
 # install the agent
 curl -fsSL https://github.com/laverdet/devcontainer/releases/latest/download/timezone-agent-install.sh | sh
+
+# to uninstall:
+# curl -fsSL https://github.com/laverdet/devcontainer/releases/latest/download/timezone-agent-install.sh | sh -s -- --uninstall
 ```
 
 You can enable the feature for every devcontainer in VS Code by adding it to your user `settings.json`:
