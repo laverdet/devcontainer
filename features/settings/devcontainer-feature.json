@@ -1,0 +1,20 @@
+{
+  "id": "settings",
+  "version": "1.0.2",
+  "name": "Settings",
+  "description": "Merge settings into per-user configuration files inside the dev container: VS Code's remote settings and Claude Code's user settings.",
+  "documentationURL": "https://github.com/laverdet/devcontainer/tree/main/features/settings",
+  "options": {
+    "vscode": {
+      "type": "string",
+      "default": "",
+      "description": "JSON object merged into VS Code's Remote [Dev Container] settings (~/.vscode-server/data/Machine/settings.json). See the README for how to quote it."
+    },
+    "claude": {
+      "type": "string",
+      "default": "",
+      "description": "JSON object merged into Claude Code's user settings (~/.claude/settings.json). See the README for how to quote it."
+    }
+  },
+  "postCreateCommand": "/usr/local/share/devcontainer-settings/apply"
+}
