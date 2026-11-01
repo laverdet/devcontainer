@@ -1,0 +1,77 @@
+#!/bin/sh
+# Host side of the ssh-restricted Dev Container Feature: ssh-agent-filter in front of your ssh-agent
+# at the session's SSH_AUTH_SOCK, letting containers use the keys in a directory and nothing else. The
+# agent itself moves to SSH_UNFILTERED_AUTH_SOCK, a socket launchd makes for this job and publishes in
+# every session. A launchd job runs it at login (see install.sh).
+#
+#   devcontainer-ssh-agent -o DIR -k KEYDIR -f FILTER
+#
+#   -o DIR     publish directory, bind-mounted by containers; the proxy's socket becomes DIR/agent.sock
+#   -k KEYDIR  private keys containers may use, each with its public key next to it as KEY.pub
+#   -f FILTER  the ssh-agent-filter executable
+set -eu
+
+log() {
+	printf '[devcontainer-ssh-agent] %s\n' "$*" >&2
+}
+die() {
+	log "$*"
+	exit 1
+}
+
+DIR=
+KEYDIR=
+FILTER=
+while getopts 'o:k:f:' opt; do
+	case $opt in
+		o) DIR=$OPTARG ;;
+		k) KEYDIR=$OPTARG ;;
+		f) FILTER=$OPTARG ;;
+		*) die "usage: devcontainer-ssh-agent -o DIR -k KEYDIR -f FILTER" ;;
+	esac
+done
+[ -n "$DIR" ] && [ -n "$KEYDIR" ] && [ -n "$FILTER" ] || die "usage: devcontainer-ssh-agent -o DIR -k KEYDIR -f FILTER"
+
+# ssh-add -l exits 2 only when nothing answers at the socket.
+alive() {
+	SSH_AUTH_SOCK=$1 ssh-add -l >/dev/null 2>&1 || [ $? -ne 2 ]
+}
+
+# Socket names are relative from here; Unix socket paths are limited to about 100 bytes.
+cd "$DIR"
+umask 077
+
+# Once per login, your agent, answering at the session's SSH_AUTH_SOCK, gets SSH_UNFILTERED_AUTH_SOCK
+# as a second name, over the placeholder launchd made there: a bound socket works under any name. After
+# a restart the previous proxy is at SSH_AUTH_SOCK, dead, and the name is left alone.
+launchd_sock=$(launchctl getenv SSH_AUTH_SOCK)
+SOCK=$(launchctl getenv SSH_UNFILTERED_AUTH_SOCK)
+[ -n "$launchd_sock" ] && [ -n "$SOCK" ] || die "SSH_AUTH_SOCK or SSH_UNFILTERED_AUTH_SOCK missing from the session"
+! alive "$launchd_sock" || ln -f "$launchd_sock" "$SOCK"
+
+# Load the keys into your agent. The proxy passes through exactly the keys named on its command line
+# and refuses every other request.
+set --
+for pub in "$KEYDIR"/*.pub; do
+	key=${pub%.pub}
+	[ -f "$key" ] || continue
+	SSH_AUTH_SOCK=$SOCK ssh-add --apple-use-keychain "$key" </dev/null || continue
+	set -- "$@" -k "$(awk 'NR == 1 { print $2 }' "$pub")"
+done
+
+# exec the proxy, so that launchd supervises it directly. Its socket will be agent.$$; a detached
+# helper waits for it, renames it to agent.sock and links that over launchd's path. Renaming over the
+# old names, never removing them, keeps running containers connected: Docker Desktop remembers a path
+# a container once found missing.
+( (
+	tries=0
+	until [ -S "agent.$$" ]; do
+		tries=$((tries + 1))
+		[ "$tries" -le 50 ] || die "ssh-agent-filter did not create $DIR/agent.$$"
+		sleep 0.1
+	done
+	mv -f "agent.$$" agent.sock
+	ln -f agent.sock "$launchd_sock"
+	log "serving $(($# / 2)) key(s) at $DIR/agent.sock and $launchd_sock; your agent is at $SOCK"
+) & )
+SSH_AUTH_SOCK=$SOCK exec "$FILTER" -d "$@" >/dev/null

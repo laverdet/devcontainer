@@ -34,6 +34,8 @@ jobs:
     container: ${{ matrix.host.container }}
     env:
       TRIPLET: ${{ matrix.host.triplet }}
+      # A v* tag is the release the installers will fetch from, and the version.
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
     steps:
       - if: matrix.host.triplet == 'aarch64-alpine-linux-musl'
         uses: laverdet/alpine-arm64@v1
@@ -65,10 +67,8 @@ jobs:
       # Setup
       - uses: actions/checkout@v5
 
-      # Build. A v* tag is the release the installer will fetch from, and the version.
+      # Build
       - name: Configure
-        env:
-          RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
         run: |
           set -ux
           cmake \
@@ -93,7 +93,7 @@ jobs:
         name: Sanity Check
         run: build/timezone-agent -h
 
-      # Package: one tarball per target, plus the installer once (it is the same everywhere)
+      # Package: one tarball per target, plus each host installer
       - name: Package
         run: |
           set -ux
@@ -101,6 +101,8 @@ jobs:
           tar -C build -czf "dist/timezone-agent-$TRIPLET.tar.gz" timezone-agent install.sh
           if [ "$TRIPLET" = aarch64-apple-darwin ]; then
             cp build/install.sh dist/timezone-agent-install.sh
+            cp features/ssh-restricted/agent/devcontainer-ssh-agent dist/
+            sed "s|@AGENT_RELEASE@|$RELEASE|" features/ssh-restricted/agent/install.sh > dist/ssh-agent-install.sh
           fi
       - uses: actions/upload-artifact@v6
         with:
@@ -152,7 +154,7 @@ jobs:
           merge-multiple: true
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.tar.gz | tee SHA256SUMS
+        run: sha256sum *.tar.gz devcontainer-ssh-agent | tee SHA256SUMS
       - if: github.repository == 'laverdet/devcontainer' && startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         id: agents
         name: Release Agents
