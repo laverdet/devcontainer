@@ -17,8 +17,8 @@
     }
   },
   "mounts": [
-    "type=bind,source=${localEnv:HOME}/.local/share/devcontainer-timezone,target=/mnt/host/devcontainer-timezone,readonly",
-    "type=bind,source=${localEnv:DEVCONTAINER_TIMEZONE_FILE:/etc/localtime},target=/mnt/host/etc/localtime,readonly"
+    "type=bind,source=${localEnv:HOME}/.local/share/devcontainer-timezone,target=/var/run/devcontainer-timezone,readonly",
+    "type=bind,source=${localEnv:DEVCONTAINER_TIMEZONE_FILE:/etc/localtime},target=/var/run/devcontainer-timezone.localtime,readonly"
   ],
   "entrypoint": "/usr/local/share/devcontainer-timezone/entrypoint '${localEnv:TZ}'"
 }

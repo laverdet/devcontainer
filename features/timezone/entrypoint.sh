@@ -10,12 +10,12 @@
 #
 # Two things from the host are bind-mounted read-only:
 #
-#   /mnt/host/devcontainer-timezone: the directory the host agent (agent/ next
+#   /var/run/devcontainer-timezone: the directory the host agent (agent/ next
 #   to this file) publishes into. 'localtime' is a copy of the zone data the
 #   host's /etc/localtime resolves to and 'zone' is its IANA name; the agent
 #   replaces both atomically whenever the host's zone changes.
 #
-#   /mnt/host/etc/localtime: the host's /etc/localtime itself, for hosts without
+#   /var/run/devcontainer-timezone.localtime: the host's /etc/localtime itself, for hosts without
 #   the agent. Docker resolves the host's symlink, so this is the zone file
 #   pinned at container creation. On macOS it sits in a versioned directory the
 #   OS replaces in place during updates, which is why it serves only to work out
@@ -35,8 +35,8 @@
 # The script never exits non-zero: a problem here must not keep the container
 # from starting.
 
-HOST_DIR=/mnt/host/devcontainer-timezone
-HOST_LOCALTIME=/mnt/host/etc/localtime
+HOST_DIR=/var/run/devcontainer-timezone
+HOST_LOCALTIME=/var/run/devcontainer-timezone.localtime
 CONFIG=/usr/local/share/devcontainer-timezone/config
 ZONEINFO=/usr/share/zoneinfo
 
