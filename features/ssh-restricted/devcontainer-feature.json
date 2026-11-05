@@ -1,6 +1,6 @@
 {
   "id": "ssh-restricted",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "name": "Restricted SSH agent",
   "description": "Containers get the SSH keys in ~/.ssh/restricted and nothing else. The host side does the protecting; this Feature is the alarm, failing loudly when a container is handed any other agent, and the fallback mount for containers VS Code does not attach to.",
   "documentationURL": "https://github.com/laverdet/devcontainer/tree/main/features/ssh-restricted",
@@ -9,6 +9,11 @@
       "type": "boolean",
       "default": true,
       "description": "Install the OpenSSH client when the image has none."
+    },
+    "identities": {
+      "type": "string",
+      "default": "",
+      "description": "ssh aliases for the restricted keys, comma separated, one \"alias [user@]host key-type key-blob\" each, e.g. \"work git@github.com ssh-ed25519 AAAAC3...\". Each becomes a Host block whose IdentityFile is that public key, signed by the agent; the private key never enters the container. Clone with alias:owner/repo."
     }
   },
   "mounts": [

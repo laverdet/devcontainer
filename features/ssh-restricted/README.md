@@ -90,3 +90,32 @@ ssh-add --apple-use-keychain ~/.ssh/restricted/KEY
 ```
 
 The log is `~/Library/Logs/devcontainer-ssh-agent.log`.
+
+## Identities
+
+GitHub lets a key belong to one account or one repository, so a container that needs more than one of the restricted
+keys needs an ssh alias per key. The `identities` option is a comma-separated list of `alias [user@]host key-type
+key-blob` entries, public keys only:
+
+```json
+"ghcr.io/laverdet/devcontainer/features/ssh-restricted:1": {
+    "identities": "work git@github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+}
+```
+
+Each entry becomes a block in `/etc/ssh/ssh_config.d/devcontainer-ssh-restricted.conf`:
+
+```
+Host work
+	HostName github.com
+	User git
+	IdentityFile /usr/local/share/devcontainer-ssh-agent/identities/work.pub
+	IdentitiesOnly yes
+```
+
+ssh asks the agent to sign for that public key alone, so the private key never enters the container. Use the alias
+wherever you would use the host:
+
+```sh
+git clone work:owner/repo
+```
