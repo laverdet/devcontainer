@@ -117,5 +117,5 @@ ssh asks the agent to sign for that public key alone, so the private key never e
 wherever you would use the host:
 
 ```sh
-git clone work:owner/repo
+git clone work:owner/repo.git
 ```
